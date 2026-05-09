@@ -1,0 +1,121 @@
+/* Reset some default styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Header row style */
+.header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #333;
+    color: #fff;
+    padding: 10px 20px;
+}
+
+.header-row .logo {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.header-row .banner {
+    font-size: 18px;
+}
+
+/* Search and menu row */
+.search-menu-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px 20px;
+    background: #f4f4f4;
+}
+
+.search-section input {
+    padding: 8px;
+    width: 200px;
+}
+
+.search-section button {
+    padding: 8px 12px;
+    margin-left: 10px;
+}
+
+.menu-section a {
+    margin-left: 20px;
+    text-decoration: none;
+    color: #333;
+    font-weight: bold;
+}
+
+/* Categorized items */
+.category-section {
+    padding: 20px;
+}
+
+.category-section h2 {
+    margin-top: 30px;
+    border-bottom: 2px solid #ddd;
+    padding-bottom: 10px;
+}
+
+/* Card layout */
+.cards-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.card {
+    display: flex;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 600px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.card-image img {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+}
+
+.card-details {
+    padding: 10px;
+    flex: 1;
+}
+
+.card-details h3 {
+    margin: 0 0 10px 0;
+}
+
+.card-details p {
+    margin: 5px 0;
+}
+
+.price {
+    font-weight: bold;
+    font-size: 1.2em;
+    color: #2c3e50;
+}
+
+button {
+    background-color: #3498db;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #2980b9;
+}
