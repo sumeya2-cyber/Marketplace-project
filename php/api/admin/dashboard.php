@@ -4,7 +4,7 @@ if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'admin') {
     header('Location: ../../../index.html');
     exit;
 }
-
+//“Detect all errors, but don’t display them on the screen.”
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
 
@@ -24,7 +24,35 @@ if (!class_exists('Database')) {
     }
 }
 
+function generateCategoryId($type) {
+    $prefixes = [
+        'property' => 'PRC',
+        'product' => 'PDC',
+        'service' => 'SRC'
+    ];
+    $prefix = $prefixes[$type] ?? 'CAT';
+    try {
+        return $prefix . '-' . strtoupper(bin2hex(random_bytes(3)));
+    } catch (Throwable $e) {
+        return $prefix . '-' . strtoupper(substr(uniqid('', true), -8));
+    }
+}
+
+function normalizeBlankCategoryIds($db, $table, $type) {
+    $stmt = $db->prepare("SELECT category_name FROM $table WHERE category_id = '' OR category_id IS NULL");
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $update = $db->prepare("UPDATE $table SET category_id = ? WHERE category_id = '' AND category_name = ? LIMIT 1");
+    foreach ($rows as $row) {
+        $newId = generateCategoryId($type);
+        $update->execute([$newId, $row['category_name']]);
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (ob_get_level()) {
+        ob_clean();
+    }
     header('Content-Type: application/json');
     $input = json_decode(file_get_contents('php://input'), true);
 
@@ -64,9 +92,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($name === '') {
                 throw new Exception('Category name is required');
             }
-            $stmt = $db->prepare("INSERT INTO $table (category_name, description) VALUES (?, ?)");
-            $stmt->execute([$name, $description]);
-            echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
+            $categoryId = generateCategoryId($type);
+            $stmt = $db->prepare("INSERT INTO $table (category_id, category_name, description) VALUES (?, ?, ?)");
+            $stmt->execute([$categoryId, $name, $description]);
+            echo json_encode(['success' => true, 'id' => $categoryId]);
             exit;
         }
 
@@ -95,6 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'list') {
+            normalizeBlankCategoryIds($db, $table, $type);
             $stmt = $db->prepare("SELECT category_id, category_name, description FROM $table ORDER BY category_name ASC");
             $stmt->execute();
             $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -251,6 +281,15 @@ async function requestCategoryAction(action, type, data = {}) {
     return result;
 }
 
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function renderCategoryList(type, categories) {
     const { listContainer } = getCategoryElements(type);
     if (!Array.isArray(categories) || categories.length === 0) {
@@ -261,19 +300,32 @@ function renderCategoryList(type, categories) {
     listContainer.innerHTML = categories.map(category => {
         const name = category.category_name || '';
         const description = category.description || '';
+        const categoryId = category.category_id || '';
         return `
             <div class="category-item">
                 <div>
-                    <strong>${name}</strong>
-                    <p>${description}</p>
+                    <strong>${escapeHtml(name)}</strong>
+                    <p>${escapeHtml(description)}</p>
                 </div>
                 <div class="category-actions">
-                    <button type="button" class="edit-btn" onclick="prepareEdit('${type}', ${category.category_id}, ${JSON.stringify(name)}, ${JSON.stringify(description)})">Edit</button>
-                    <button type="button" class="delete-btn" onclick="deleteCategory('${type}', ${category.category_id})">Delete</button>
+                    <button type="button" class="edit-btn" data-type="${type}" data-id="${escapeHtml(categoryId)}" data-name="${escapeHtml(name)}" data-desc="${escapeHtml(description)}">Edit</button>
+                    <button type="button" class="delete-btn" data-type="${type}" data-id="${escapeHtml(categoryId)}">Delete</button>
                 </div>
             </div>
         `;
     }).join('');
+
+    listContainer.querySelectorAll('.edit-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            prepareEdit(button.dataset.type, button.dataset.id, button.dataset.name, button.dataset.desc);
+        });
+    });
+
+    listContainer.querySelectorAll('.delete-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            deleteCategory(button.dataset.type, button.dataset.id);
+        });
+    });
 }
 
 async function loadCategories(type) {
