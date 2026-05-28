@@ -1,47 +1,80 @@
 <?php
+// php/api/post_products.php
 session_start();
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 
-require_once '../config/database.php';
-require_once '../includes/functions.php';
-
-if (!isset($_SESSION['user_id'])) {
-    jsonResponse(false, 'Please login first');
-}
+require_once '../config/Database.php';
 
 $database = new Database();
 $db = $database->getConnection();
 
-$image_path = null;
-if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-    $image_path = uploadImage($_FILES['image'], 'product');
-    if (!$image_path) {
-        jsonResponse(false, 'Failed to upload image');
+// --- FORCED TEST RETAINERS FOR THUNDER CLIENT TESTING ---
+$user_id = 'USR-999'; 
+$category_id = 'CAT-PROD-01';
+
+try {
+    $db->beginTransaction();
+
+    // 1. SAFETY CHECK: Ensure the User anchor exists
+    $checkUser = $db->prepare("SELECT user_id FROM Users WHERE user_id = :uid");
+    $checkUser->execute([':uid' => $user_id]);
+    if ($checkUser->rowCount() === 0) {
+        $insertUser = $db->prepare("INSERT INTO Users (user_id, f_name, l_name, email, phone, password, status) 
+                                    VALUES (:uid, 'Test', 'User', 'testuser@example.com', '09000000', 'hash', 'Active')");
+        $insertUser->execute([':uid' => $user_id]);
     }
-}
 
-$query = "INSERT INTO product_listing 
-          (user_id, category_id, title, itemdescription, price, quantity, 
-           productcondition, image_path, itemstatus) 
-          VALUES 
-          (:user_id, :category_id, :title, :itemdescription, :price, :quantity,
-           :productcondition, :image_path, 'pending')";
+    // 2. SAFETY CHECK: Ensure the Product Category exists
+    $checkCat = $db->prepare("SELECT category_id FROM Product_Category WHERE category_id = :cid");
+    $checkCat->execute([':cid' => $category_id]);
+    if ($checkCat->rowCount() === 0) {
+        $insertCat = $db->prepare("INSERT INTO Product_Category (category_id, category_name) VALUES (:cid, 'Electronics')");
+        $insertCat->execute([':cid' => $category_id]);
+    }
 
-$stmt = $db->prepare($query);
+    // Generate unique structural primary keys
+    $product_id = 'PROD-' . uniqid();
+    $listing_id = 'LIST-PROD-' . uniqid();
 
-$stmt->bindParam(':user_id', $_SESSION['user_id']);
-$stmt->bindParam(':category_id', $_POST['category_id']);
-$stmt->bindParam(':title', $_POST['title']);
-$stmt->bindParam(':itemdescription', $_POST['itemdescription']);
-$stmt->bindParam(':price', $_POST['price']);
-$stmt->bindParam(':quantity', $_POST['quantity']);
-$stmt->bindParam(':productcondition', $_POST['productcondition']);
-$stmt->bindParam(':image_path', $image_path);
+    // 3. Insert into base Product table
+    $query1 = "INSERT INTO Product (product_id, product_name, brand_id, category_id, description) 
+               VALUES (:product_id, :product_name, NULL, :category_id, :description)";
+    
+    $stmt1 = $db->prepare($query1);
+    $title = isset($_POST['title']) ? $_POST['title'] : 'iPhone 15 Pro';
+    $desc = isset($_POST['itemdescription']) ? $_POST['itemdescription'] : 'Brand new condition.';
 
-if ($stmt->execute()) {
-    jsonResponse(true, 'Product posted successfully. Waiting for admin approval.');
-} else {
-    jsonResponse(false, 'Failed to post product');
+    $stmt1->bindParam(':product_id', $product_id);
+    $stmt1->bindParam(':product_name', $title);
+    $stmt1->bindParam(':category_id', $category_id);
+    $stmt1->bindParam(':description', $desc);
+    $stmt1->execute();
+
+    // 4. Insert transactional parameters onto Product_Listing (marked as Approved for easy testing!)
+    $query2 = "INSERT INTO Product_Listing (listing_id, product_id, price, quantity, status) 
+               VALUES (:listing_id, :product_id, :price, :quantity, 'Approved')";
+    
+    $stmt2 = $db->prepare($query2);
+    $price = isset($_POST['price']) ? floatval($_POST['price']) : 1200.00;
+    $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 5;
+
+    $stmt2->bindParam(':listing_id', $listing_id);
+    $stmt2->bindParam(':product_id', $product_id);
+    $stmt2->bindParam(':price', $price);
+    $stmt2->bindParam(':quantity', $quantity);
+    $stmt2->execute();
+
+    $db->commit();
+    echo json_encode([
+        'success' => true, 
+        'message' => 'Product listing created successfully in your XAMPP tables!'
+    ]);
+
+} catch (PDOException $e) {
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 }
 ?>

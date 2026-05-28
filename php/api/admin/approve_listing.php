@@ -7,42 +7,30 @@ if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'admin') {
     exit;
 }
 
-require_once '../../config/database.php';
+require_once __DIR__ . '/../../config/Database.php';
 
+// Capture the raw JSON sent from the dashboard
 $data = json_decode(file_get_contents("php://input"));
 
-$database = new Database();
-$db = $database->getConnection();
-
-$table = '';
-switch($data->type) {
-    case 'property':
-        $table = 'property_listing';
-       
-        break;
-    case 'product':
-        $table = 'product_listing';
-        
-        break;
-    case 'contract':
-        $table = 'contract_listing';
-        
-        break;
-    default:
-        echo json_encode(['success' => false, 'message' => 'Invalid type']);
-        exit;
+if (!isset($data->id) || !isset($data->action)) {
+    echo json_encode(['success' => false, 'message' => 'Missing data.']);
+    exit;
 }
 
-$status = ($data->action === 'approve') ? 'approved' : 'rejected';
+try {
+    $database = new Database();
+    $db = $database->getConnection();
 
-$query = "UPDATE $table SET itemstatus = '$status' WHERE id = :id";
-$stmt = $db->prepare($query);
-//$stmt->bindParam(':itemstatus', $status);
-$stmt->bindParam(':id', $data->id);
+    // Use listing_id to target the specific row
+    $query = "UPDATE product_listing SET status = :status WHERE listing_id = :id";
+    $stmt = $db->prepare($query);
+    
+    // Execute the update
+    $stmt->execute([':status' => $data->action, ':id' => $data->id]);
 
-if ($stmt->execute()) {
-    echo json_encode(['success' => true]);
-} else {
-    echo json_encode(['success' => false]);
+    echo json_encode(['success' => true, 'message' => 'Status updated to ' . $data->action]);
+
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 }
 ?>

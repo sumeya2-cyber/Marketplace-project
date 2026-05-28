@@ -3,43 +3,27 @@ session_start();
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'admin') {
-    echo json_encode([]);
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
 
-require_once '../../config/database.php';
+require_once __DIR__ . '/../../config/Database.php';
 
-$database = new Database();
-$db = $database->getConnection();
+try {
+    $database = new Database();
+    $db = $database->getConnection();
 
-$pending = [];
+    $query = "SELECT listing_id, product_id, price, quantity, listing_type, date_posted, status 
+              FROM product_listing 
+              WHERE status = 'Pending' 
+              ORDER BY date_posted DESC";
 
-// Get pending properties
-$query = "SELECT p.*, 'property' as type, u.username 
-          FROM property_listing p 
-          JOIN marketusers u ON p.user_id = u.id 
-          WHERE p.itemstatus = 'pending'";
-$stmt = $db->prepare($query);
-$stmt->execute();
-$pending = array_merge($pending, $stmt->fetchAll(PDO::FETCH_ASSOC));
+    $stmt = $db->prepare($query);
+    $stmt->execute();
+    $pending = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get pending products
-$query = "SELECT p.*, 'product' as type, u.username 
-          FROM product_listing p 
-          JOIN marketusers u ON p.user_id = u.id 
-          WHERE p.itemstatus = 'pending'";
-$stmt = $db->prepare($query);
-$stmt->execute();
-$pending = array_merge($pending, $stmt->fetchAll(PDO::FETCH_ASSOC));
-
-// Get pending contracts
-$query = "SELECT c.*, 'contract' as type, u.username 
-          FROM contract_listing c 
-          JOIN marketusers u ON c.user_id = u.id 
-          WHERE c.itemstatus = 'pending'";
-$stmt = $db->prepare($query);
-$stmt->execute();
-$pending = array_merge($pending, $stmt->fetchAll(PDO::FETCH_ASSOC));
-
-echo json_encode($pending);
+    echo json_encode(['success' => true, 'data' => $pending]);
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+}
 ?>
