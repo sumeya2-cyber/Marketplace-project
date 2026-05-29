@@ -2,37 +2,42 @@
 let currentUser = null;
 
 // Modal triggers
-function showLogin() { document.getElementById('loginModal').style.display = 'block'; }
-function showSignup() { document.getElementById('signupModal').style.display = 'block'; }
-function showAdminLogin() { document.getElementById('adminLoginModal').style.display = 'block'; }
+function showLogin() { document.getElementById('loginModal').classList.add('open'); }
+function showSignup() { document.getElementById('signupModal').classList.add('open'); }
+function showAdminLogin() { document.getElementById('adminLoginModal').classList.add('open'); }
 
 // Close modals when clicking the close button
 document.querySelectorAll('.close').forEach(closeBtn => {
     closeBtn.onclick = function() {
-        this.closest('.modal').style.display = 'none';
+        this.closest('.modal').classList.remove('open');
     }
 });
 
 // Handle User Login
 document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = e.target[0].value;
+    const email = e.target[0].value.trim();
     const password = e.target[1].value;
-    
+
+    if (!validateEmail(email) || password.length === 0) {
+        alert('Please enter a valid email and password.');
+        return;
+    }
+
     try {
         const response = await fetch('php/api/login.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password, type: 'user' })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             currentUser = result.user;
             localStorage.setItem('user', JSON.stringify(result.user));
             alert('Login successful!');
-            document.getElementById('loginModal').style.display = 'none';
+            document.getElementById('loginModal').classList.remove('open');
             updateAuthUI();
         } else {
             alert('Login failed: ' + result.message);
@@ -46,22 +51,25 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
 // Handle Admin Login
 document.getElementById('adminLoginForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = e.target[0].value;
+    const email = e.target[0].value.trim();
     const password = e.target[1].value;
-    
+
+    if (!validateEmail(email) || password.length === 0) {
+        alert('Please enter a valid email and password.');
+        return;
+    }
+
     try {
         const response = await fetch('php/api/login.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password, type: 'admin' })
         });
-        
+
         const result = await response.json();
-        
-        // Verifies the success status and ensures the user object exists
+
         if (result.success && result.user && result.user.user_type === 'admin') {
             localStorage.setItem('admin', JSON.stringify(result.user));
-            // Redirects to the verified admin path
             window.location.href = 'php/api/admin/dashboard.php';
         } else {
             alert('Admin login failed: ' + (result.message || 'Invalid credentials'));
@@ -75,26 +83,27 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', async (e) 
 // Handle signup
 document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = {
-        fullName: e.target[0].value,
-        username: e.target[1].value,
-        email: e.target[2].value,
-        password: e.target[3].value,
-        phone: e.target[4].value
-    };
-    
+    const name = document.getElementById('signupName')?.value.trim();
+    const email = document.getElementById('signupEmail')?.value.trim();
+    const password = document.getElementById('signupPassword')?.value;
+
+    if (!name || !validateEmail(email) || password.length < 6) {
+        alert('Please enter your name, a valid email, and a password with at least 6 characters.');
+        return;
+    }
+
     try {
-        const response = await fetch('php/api/register.php', {
+        const response = await fetch('php/api/signup.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
+            body: JSON.stringify({ name, email, password })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
-            alert('Registration successful! Please login.');
-            document.getElementById('signupModal').style.display = 'none';
+            alert(result.message || 'Registration successful. Please login.');
+            document.getElementById('signupModal').classList.remove('open');
             showLogin();
         } else {
             alert('Registration failed: ' + result.message);
@@ -105,12 +114,17 @@ document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
     }
 });
 
+function validateEmail(email) {
+    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+}
+
 // Update UI based on auth state
 function updateAuthUI() {
     const authButtons = document.querySelector('.auth-buttons');
+    if (!authButtons) return;
     if (currentUser) {
         authButtons.innerHTML = `
-            <span>Welcome, ${currentUser.username}</span>
+            <span>Welcome, ${escapeHtml(currentUser.username)}</span>
             <button onclick="logout()" class="btn-logout">Logout</button>
         `;
     }
@@ -129,4 +143,13 @@ const savedUser = localStorage.getItem('user');
 if (savedUser) {
     currentUser = JSON.parse(savedUser);
     updateAuthUI();
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }

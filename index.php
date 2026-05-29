@@ -29,7 +29,7 @@
         <nav class="main-nav">
             <button class="nav-btn active" data-type="properties">Properties</button>
             <button class="nav-btn" data-type="products">Products</button>
-            <button class="nav-btn" data-type="contracts">Contracts/Jobs</button>
+            <button class="nav-btn" data-type="services">Services</button>
             <button class="post-btn" onclick="showPostForm()"><i class="fas fa-plus"></i> Post Ad</button>
         </nav>
     </header>
@@ -64,11 +64,9 @@
             <span class="close">&times;</span>
             <h2>Sign Up</h2>
             <form id="signupForm">
-                <input type="text" placeholder="Full Name" required>
-                <input type="text" placeholder="Username" required>
-                <input type="email" placeholder="Email" required>
-                <input type="password" placeholder="Password" required>
-                <input type="text" placeholder="Phone">
+                <input id="signupName" name="name" type="text" placeholder="Full Name" required>
+                <input id="signupEmail" name="email" type="email" placeholder="Email" required>
+                <input id="signupPassword" name="password" type="password" placeholder="Password" required>
                 <button type="submit">Register</button>
             </form>
         </div>
@@ -99,7 +97,7 @@
         </div>
     </div>
 
-    <script src="js/auth.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/auth.js?v=6" defer></script>
+    <script src="js/main.js?v=6" defer></script>
 </body>
 </html>

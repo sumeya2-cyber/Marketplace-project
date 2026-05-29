@@ -396,7 +396,82 @@ async function deleteCategory(type, id) {
 
 window.addEventListener('DOMContentLoaded', () => {
     ['property', 'product', 'service'].forEach(type => loadCategories(type));
+    // load pending listings for admin
+    if (document.getElementById('productTableBody')) {
+        refreshPendingTable();
+        // refresh every 20 seconds while admin is on the page
+        setInterval(() => { if (document.hidden === false) refreshPendingTable(); }, 20000);
+    }
 });
+
+// fetch pending listings and populate the pending table
+async function refreshPendingTable() {
+    try {
+        const res = await fetch('../fetch_pending_items.php', { credentials: 'same-origin' });
+        const result = await res.json();
+        const tbody = document.getElementById('productTableBody');
+        if (!result.success) {
+            tbody.innerHTML = '<tr><td colspan="6">Unable to load pending listings.</td></tr>';
+            return;
+        }
+        const rows = result.data || [];
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6">No pending listings.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(r => `
+            <tr>
+                <td>${r.listing_id}</td>
+                <td>${r.price}</td>
+                <td>${r.quantity}</td>
+                <td>${r.category_id || ''}</td>
+                <td>${r.status}</td>
+                <td>
+                    <button class="btn-approve" onclick="approveRemote('${r.listing_id}')">Approve</button>
+                    <button class="btn-reject" onclick="rejectRemote('${r.listing_id}')">Reject</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function approveRemote(listingId) {
+    if (!confirm('Approve this listing?')) return;
+    try {
+        const res = await fetch('../approve_item.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listing_id: listingId })
+        });
+        const result = await res.json();
+        if (result.success) {
+            refreshPendingTable();
+        } else alert(result.message || 'Failed to approve');
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function rejectRemote(listingId) {
+    if (!confirm('Reject and delete this listing?')) return;
+    try {
+        const res = await fetch('../reject_item.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listing_id: listingId })
+        });
+        const result = await res.json();
+        if (result.success) {
+            refreshPendingTable();
+        } else alert(result.message || 'Failed to reject');
+    } catch (err) {
+        console.error(err);
+    }
+}
 </script>
 </body>
 </html>

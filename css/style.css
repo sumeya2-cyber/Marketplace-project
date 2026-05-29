@@ -4,6 +4,10 @@
     box-sizing: border-box;
 }
 
+html, body {
+    height: 100%;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #f5f5f5;
@@ -123,6 +127,13 @@ header {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
+/* Make sidebar sticky at left and align to container start */
+.sidebar {
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+}
+
 .sidebar h3 {
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
@@ -144,10 +155,92 @@ header {
     padding-left: 10px;
 }
 
+.category-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 1px solid transparent;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.category-item:hover,
+.category-item.active {
+    color: #e44d3a;
+    background: #fff2ef;
+    border-color: #e44d3a;
+}
+
+.listing-detail {
+    margin: 0.5rem 0 0;
+    color: #555;
+    font-size: 0.95rem;
+}
+
+.listing-description {
+    margin-top: 0.75rem;
+    line-height: 1.45;
+}
+
+.listing-image.placeholder {
+    width: 100%;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f0f0;
+    color: #999;
+}
+
 /* Content */
 .content {
     flex: 1;
 }
+
+/* Make the listing area scroll separately when content is long */
+.content {
+    display: flex;
+    flex-direction: column;
+}
+
+#listings-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+    /* allow page scrolling for long lists (let the page scroll naturally) */
+    overflow-y: visible;
+    max-height: none;
+}
+
+/* Ensure category list aligns flush to the left inside the sidebar */
+#categories-list {
+    margin-left: 0;
+    padding-left: 0;
+}
+
+.category-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.category-list-item {
+    padding: 0.6rem 0.8rem;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #222;
+    text-align: left;
+}
+.category-list-item:hover { background: rgba(0,0,0,0.04); }
+.category-list-item.active { background: #3498db; color: white; }
 
 #listings-container {
     display: grid;
@@ -207,14 +300,45 @@ header {
     background-color: rgba(0,0,0,0.5);
 }
 
+/* Use flex layout for modal overlay so content can center and allow inner scrolling */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+/* When a modal has the .open class it becomes a centered flex overlay */
+.modal.open {
+    display: flex;
+    align-items: flex-start; /* start so tall content naturally scrolls */
+    justify-content: center;
+    padding: 20px; /* small breathing room on mobile */
+    overflow: auto; /* allow whole overlay to scroll if needed */
+}
+
 .modal-content {
     background-color: white;
-    margin: 5% auto;
+    margin: 0 auto;
     padding: 2rem;
     border-radius: 10px;
     width: 90%;
-    max-width: 500px;
+    max-width: 700px;
     position: relative;
+    box-sizing: border-box;
+}
+
+/* Smaller modals (post form) should scroll vertically when content is long */
+.modal-content.small {
+    max-width: 600px;
+    max-height: calc(100vh - 120px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 1.25rem !important; /* space for scrollbar */
 }
 
 .modal-content.large {
