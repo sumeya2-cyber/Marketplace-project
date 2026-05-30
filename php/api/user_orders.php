@@ -29,8 +29,10 @@ $database = new Database();
 $db = $database->getConnection();
 
 try {
-    $stmt = $db->prepare('SELECT o.order_id, o.status, o.total_amount, o.order_date, oi.order_item_id, oi.product_id, oi.property_id, oi.price, oi.quantity FROM orders o JOIN order_item oi ON o.order_id = oi.order_id WHERE o.user_id = :user_id ORDER BY o.order_date DESC');
-    $stmt->bindParam(':user_id', $ownerId);
+    // Fetch orders by user_id for registered users OR by guest_token for guests
+    $stmt = $db->prepare('SELECT o.order_id, o.status, o.total_amount, o.order_date, o.guest_token, o.guest_name, o.guest_email, oi.order_item_id, oi.product_id, oi.property_id, oi.price, oi.quantity FROM orders o JOIN order_item oi ON o.order_id = oi.order_id WHERE (o.user_id = :user_id OR (o.user_id IS NULL AND o.guest_token = :guest_token)) ORDER BY o.order_date DESC');
+    $stmt->bindParam(':user_id', $userId);
+    $stmt->bindParam(':guest_token', $guestToken);
     $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $payload = ['success' => true, 'orders' => $rows];

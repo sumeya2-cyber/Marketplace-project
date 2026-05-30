@@ -28,13 +28,20 @@ $database = new Database();
 $db = $database->getConnection();
 
 try {
-    $stmt = $db->prepare('SELECT oi.order_id, o.user_id FROM order_item oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.order_item_id = :item_id LIMIT 1');
+    // Fetch order info to verify ownership
+    $stmt = $db->prepare('SELECT oi.order_id, o.user_id, o.guest_token FROM order_item oi JOIN orders o ON oi.order_id = o.order_id WHERE oi.order_item_id = :item_id LIMIT 1');
     $stmt->bindParam(':item_id', $orderItemId);
     $stmt->execute();
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$row || $row['user_id'] !== $ownerId) {
-        jsonResponse(false, 'Order item not found or does not belong to the current user or guest session.');
+    if (!$row) {
+        jsonResponse(false, 'Order item not found.');
+    }
+
+    // Verify ownership: either user_id matches OR guest_token matches
+    $isOwner = ($userId && $row['user_id'] === $userId) || (!$userId && $row['guest_token'] === $guestToken);
+    if (!$isOwner) {
+        jsonResponse(false, 'Order item does not belong to the current user or guest session.');
     }
 
     $exists = $db->prepare('SELECT return_request_id FROM return_request WHERE order_item_id = :item_id LIMIT 1');
@@ -51,7 +58,7 @@ try {
         ':item_id' => $orderItemId,
         ':reason' => $reason,
         ':status' => 'Pending',
-        ':user_id' => $ownerId,
+        ':user_id' => $userId,  // Store actual user_id if logged in, NULL for guests
         ':request_type' => $requestType
     ]);
 

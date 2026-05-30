@@ -67,14 +67,17 @@ try {
     $totalAmount = round($price * $quantity, 2);
     $orderId = 'ORD-' . bin2hex(random_bytes(6));
     $orderItemId = 'ITEM-' . bin2hex(random_bytes(6));
-    $orderOwnerId = $userId ?: $guestToken;
 
-    $insertOrder = $db->prepare('INSERT INTO orders (order_id, user_id, status, total_amount, order_date, due_date) VALUES (:order_id, :user_id, :status, :total_amount, NOW(), NULL)');
+    // For guest orders, store NULL for user_id and save guest info in guest_* columns
+    $insertOrder = $db->prepare('INSERT INTO orders (order_id, user_id, status, total_amount, order_date, due_date, guest_token, guest_name, guest_email) VALUES (:order_id, :user_id, :status, :total_amount, NOW(), NULL, :guest_token, :guest_name, :guest_email)');
     $insertOrder->execute([
         ':order_id' => $orderId,
-        ':user_id' => $orderOwnerId,
+        ':user_id' => $userId,  // NULL for guests, user ID for registered users
         ':status' => 'Pending',
-        ':total_amount' => $totalAmount
+        ':total_amount' => $totalAmount,
+        ':guest_token' => $userId ? null : $guestToken,
+        ':guest_name' => $userId ? null : $guestName,
+        ':guest_email' => $userId ? null : $guestEmail
     ]);
 
     if ($listingType === 'product') {
