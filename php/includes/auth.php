@@ -1,6 +1,7 @@
 <?php
-session_start();
-require_once '../config/database.php';
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
 
 function isLoggedIn() {
     return isset($_SESSION['user_id']);

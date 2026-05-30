@@ -1,0 +1,8 @@
+{
+  "name": "marketplace/marketplace",
+  "description": "Marketplace PHP project dependency manifest",
+  "type": "project",
+  "require": {
+    "phpmailer/phpmailer": "^7.0"
+  }
+}

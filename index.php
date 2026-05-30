@@ -15,6 +15,7 @@
                 <span>MarketPlace</span>
             </div>
             <div class="auth-buttons">
+                <button onclick="showOrders()" class="btn-orders"><i class="fas fa-shopping-bag"></i> My Orders</button>
                 <button onclick="showAdminLogin()" class="btn-admin"><i class="fas fa-user-shield"></i> Admin</button>
                 <button onclick="showLogin()" class="btn-login"><i class="fas fa-sign-in-alt"></i> Sign In</button>
                 <button onclick="showSignup()" class="btn-signup"><i class="fas fa-user-plus"></i> Sign Up</button>
@@ -94,6 +95,88 @@
                 <input type="password" placeholder="Password" required>
                 <button type="submit">Login as Admin</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Orders Modal -->
+    <div id="ordersModal" class="modal">
+        <div class="modal-content large">
+            <span class="close">&times;</span>
+            <h2>My Orders</h2>
+            <div id="ordersList">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Order Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content small">
+            <span class="close">&times;</span>
+            <h2>Place Order</h2>
+            <form id="orderForm">
+                <input type="hidden" id="orderListingType">
+                <input type="hidden" id="orderItemId">
+                <label>Item</label>
+                <div id="orderItemName" class="readonly-field"></div>
+                <label>Price</label>
+                <div id="orderItemPrice" class="readonly-field"></div>
+                <label for="orderQuantity">Quantity</label>
+                <input id="orderQuantity" type="number" min="1" value="1" required>
+                <div id="guestOrderFields">
+                    <label for="guestName">Your Name</label>
+                    <input id="guestName" type="text" placeholder="Name">
+                    <label for="guestEmail">Your Email</label>
+                    <input id="guestEmail" type="email" placeholder="Email">
+                </div>
+                <button type="submit">Submit Order</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Refund/Return Modal -->
+    <div id="refundModal" class="modal">
+        <div class="modal-content small">
+            <span class="close">&times;</span>
+            <h2>Request Refund / Return</h2>
+            <form id="refundForm">
+                <input type="hidden" id="refundOrderItemId">
+                <label for="refundType">Type</label>
+                <select id="refundType">
+                    <option value="refund">Refund</option>
+                    <option value="return">Return</option>
+                </select>
+                <label for="refundReason">Reason</label>
+                <textarea id="refundReason" rows="4" required placeholder="Explain the issue..."></textarea>
+                <button type="submit">Submit Request</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Review Modal -->
+    <div id="reviewModal" class="modal">
+        <div class="modal-content small">
+            <span class="close">&times;</span>
+            <h2>Submit Review</h2>
+            <form id="reviewForm">
+                <input type="hidden" id="reviewListingType">
+                <input type="hidden" id="reviewListingId">
+                <input type="hidden" id="reviewRelatedOrderId">
+                <label for="reviewRating">Rating (1-5)</label>
+                <input id="reviewRating" type="number" min="1" max="5" value="5" required>
+                <label for="reviewTitle">Title</label>
+                <input id="reviewTitle" type="text">
+                <label for="reviewComment">Comment</label>
+                <textarea id="reviewComment" rows="4"></textarea>
+                <button type="submit">Submit Review</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delivery Modal -->
+    <div id="deliveryModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Delivery History</h2>
+            <div id="deliveryHistory">Loading...</div>
         </div>
     </div>
 

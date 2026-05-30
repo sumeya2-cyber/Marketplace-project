@@ -28,7 +28,8 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
         const response = await fetch('php/api/login.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, type: 'user' })
+            body: JSON.stringify({ email, password, type: 'user' }),
+            credentials: 'same-origin'
         });
 
         const result = await response.json();
@@ -63,7 +64,8 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', async (e) 
         const response = await fetch('php/api/login.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, type: 'admin' })
+              body: JSON.stringify({ email, password, type: 'admin' }),
+              credentials: 'same-origin'
         });
 
         const result = await response.json();
@@ -96,7 +98,8 @@ document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
         const response = await fetch('php/api/signup.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, password })
+                body: JSON.stringify({ name, email, password }),
+                credentials: 'same-origin'
         });
 
         const result = await response.json();
@@ -124,6 +127,7 @@ function updateAuthUI() {
     if (!authButtons) return;
     if (currentUser) {
         authButtons.innerHTML = `
+            <button onclick="showOrders()" class="btn-orders"><i class="fas fa-shopping-bag"></i> My Orders</button>
             <span>Welcome, ${escapeHtml(currentUser.username)}</span>
             <button onclick="logout()" class="btn-logout">Logout</button>
         `;

@@ -1,10 +1,14 @@
 let currentListingType = 'properties';
 let currentCategoryId = null;
+let guestToken = getGuestToken();
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
     switchTab('properties');
+    document.getElementById('refundForm')?.addEventListener('submit', handleRefundForm);
+    document.getElementById('reviewForm')?.addEventListener('submit', handleReviewForm);
+    document.getElementById('orderForm')?.addEventListener('submit', handleOrderForm);
 });
 
 function setupNavigation() {
@@ -131,6 +135,21 @@ async function loadCategoryItems(type, categoryId = null) {
         }
 
         container.innerHTML = items.map(item => createListingCard(item, type)).join('');
+        container.querySelectorAll('.btn-order').forEach(button => {
+            button.addEventListener('click', () => {
+                let itemType = button.dataset.type;
+                const itemId = button.dataset.id;
+                const itemName = button.dataset.title;
+                const itemPrice = button.dataset.price;
+                if (itemType === 'properties') itemType = 'property';
+                if (itemType === 'products') itemType = 'product';
+                if (itemType === 'services') {
+                    alert('Service ordering is not supported yet. Please contact the service provider.');
+                    return;
+                }
+                showOrderModal(itemType, itemId, itemName, itemPrice);
+            });
+        });
     } catch (error) {
         console.error('Error loading items:', error);
         container.innerHTML = '<p>Error loading listings. Please try again later.</p>';
@@ -144,6 +163,8 @@ function createListingCard(listing, type) {
     const description = listing.description || listing.itemdescription || '';
     const brand = listing.brand || listing.brand_name || 'N/A';
     const imagePath = listing.image_path || listing.image || '';
+    const itemId = listing.product_id || listing.property_id || listing.id || '';
+    const orderButton = `<button class="btn-order" data-type="${escapeHtml(type)}" data-id="${escapeHtml(String(itemId))}" data-title="${escapeHtml(title)}" data-price="${escapeHtml(String(price))}">Order Now</button>`;
 
     return `
         <div class="listing-card">
@@ -155,6 +176,7 @@ function createListingCard(listing, type) {
                 <div class="listing-detail"><strong>Location:</strong> ${escapeHtml(location)}</div>
                 <div class="listing-detail"><strong>Brand:</strong> ${escapeHtml(brand)}</div>
                 <div class="listing-description">${escapeHtml(description).substring(0, 160)}</div>
+                <div class="listing-actions">${orderButton}</div>
             </div>
         </div>
     `;
@@ -167,6 +189,70 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function getGuestToken() {
+    let token = localStorage.getItem('marketplaceGuestToken');
+    if (!token) {
+        token = 'GUEST-' + Math.random().toString(36).substring(2, 12) + '-' + Date.now();
+        localStorage.setItem('marketplaceGuestToken', token);
+    }
+    return token;
+}
+
+function showOrderModal(type, itemId, itemName, itemPrice) {
+    document.getElementById('orderListingType').value = type;
+    document.getElementById('orderItemId').value = itemId;
+    document.getElementById('orderItemName').textContent = itemName;
+    document.getElementById('orderItemPrice').textContent = itemPrice !== 'N/A' ? '$' + itemPrice : 'N/A';
+    document.getElementById('orderQuantity').value = 1;
+    document.getElementById('guestName').value = '';
+    document.getElementById('guestEmail').value = '';
+    document.getElementById('guestOrderFields').style.display = currentUser ? 'none' : 'block';
+    document.getElementById('orderModal').classList.add('open');
+}
+
+async function handleOrderForm(e) {
+    e.preventDefault();
+    const listingType = document.getElementById('orderListingType').value;
+    const itemId = document.getElementById('orderItemId').value;
+    const quantity = parseInt(document.getElementById('orderQuantity').value, 10) || 1;
+    const guestName = document.getElementById('guestName').value.trim();
+    const guestEmail = document.getElementById('guestEmail').value.trim();
+
+    if (!itemId || !listingType) {
+        return alert('Invalid item selected.');
+    }
+    if (!currentUser && (!guestName || !guestEmail)) {
+        return alert('Please enter your name and email.');
+    }
+
+    try {
+        const response = await fetch('php/api/create_order.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                listing_type: listingType,
+                item_id: itemId,
+                quantity,
+                guest_name: guestName,
+                guest_email: guestEmail,
+                guest_token: guestToken
+            }),
+            credentials: 'same-origin'
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('Order created successfully. Order ID: ' + (result.order_id || 'N/A'));
+            document.getElementById('orderModal').classList.remove('open');
+            showOrders();
+        } else {
+            alert('Order failed: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Order error:', error);
+        alert('Failed to place order. Please try again.');
+    }
 }
 
 // Keep compatibility with older code
@@ -339,6 +425,166 @@ async function placeBid(contractId) {
     } catch (error) {
         console.error('Bid error:', error);
         alert('Error placing bid. Please try again.');
+    }
+}
+
+// Orders / Refunds / Reviews / Delivery UI
+async function showOrders() {
+    document.getElementById('ordersModal').classList.add('open');
+    const listEl = document.getElementById('ordersList');
+    listEl.innerHTML = 'Loading...';
+    try {
+        const url = 'php/api/user_orders.php?guest_token=' + encodeURIComponent(guestToken);
+        const res = await fetch(url, { credentials: 'same-origin' });
+        const text = await res.text();
+        let json;
+        try {
+            json = JSON.parse(text);
+        } catch (parseErr) {
+            console.error('Failed to parse JSON from user_orders.php:', parseErr, 'RAW RESPONSE:', text);
+            listEl.innerHTML = `<pre style="white-space:pre-wrap;">Error parsing server response:\n${escapeHtml(text)}</pre>`;
+            return;
+        }
+        if (!json.success) return listEl.innerHTML = `<p>Error loading orders: ${escapeHtml(json.message || json.raw_output || 'Unknown')}</p>`;
+        const rows = json.orders || json.data || [];
+        listEl.innerHTML = renderOrders(rows);
+        // attach buttons
+        listEl.querySelectorAll('.btn-refund').forEach(b => b.addEventListener('click', () => openRefundModal(b.dataset.item)));
+        listEl.querySelectorAll('.btn-review').forEach(b => b.addEventListener('click', () => openReviewModal(b.dataset.type, b.dataset.listing, b.dataset.order)));
+        listEl.querySelectorAll('.btn-track').forEach(b => b.addEventListener('click', () => viewDeliveryHistory(b.dataset.order)));
+    } catch (err) {
+        console.error(err);
+        listEl.innerHTML = '<p>Error loading orders.</p>';
+    }
+}
+
+function renderOrders(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) return '<p>No orders found.</p>';
+    const byOrder = {};
+    rows.forEach(r => {
+        const oid = r.order_id || r.id || r.orderId || r.order_id_fk || 'unknown';
+        byOrder[oid] = byOrder[oid] || [];
+        byOrder[oid].push(r);
+    });
+
+    return Object.keys(byOrder).map(oid => {
+        const items = byOrder[oid];
+        const header = `<div class="order-header"><strong>Order #${escapeHtml(String(oid))}</strong> - ${escapeHtml(items[0].created_at || items[0].order_date || '')} - Tracking: ${escapeHtml(items[0].tracking_number||'N/A')}</div>`;
+        const list = items.map(it => {
+            const itemId = it.order_item_id || it.item_id || it.id || '';
+            const listingType = it.product_id ? 'product' : (it.property_id ? 'property' : (it.service_contract_id ? 'service' : 'product'));
+            const listingId = it.product_id || it.property_id || it.service_contract_id || '';
+            const title = it.product_name || it.title || it.address || it.name || it.listing_title || 'Item';
+            const qty = it.quantity || it.qty || 1;
+            const price = it.unit_price || it.price || it.amount || '';
+            return `<div class="order-item">
+                        <div class="order-item-title">${escapeHtml(title)}</div>
+                        <div class="order-item-meta">Qty: ${escapeHtml(String(qty))} — ${price ? ('$' + escapeHtml(String(price))) : ''}</div>
+                        <div class="order-item-actions">
+                            <button class="btn-track" data-order="${escapeHtml(String(oid))}">Track</button>
+                            <button class="btn-refund" data-item="${escapeHtml(String(itemId))}">Refund/Return</button>
+                            <button class="btn-review" data-type="${escapeHtml(listingType)}" data-listing="${escapeHtml(String(listingId))}" data-order="${escapeHtml(String(oid))}">Review</button>
+                        </div>
+                    </div>`;
+        }).join('');
+        return `<div class="order-block">${header}${list}</div>`;
+    }).join('');
+}
+
+function openRefundModal(orderItemId) {
+    document.getElementById('refundOrderItemId').value = orderItemId;
+    document.getElementById('refundReason').value = '';
+    document.getElementById('refundModal').classList.add('open');
+}
+
+async function handleRefundForm(e) {
+    e.preventDefault();
+    const itemId = document.getElementById('refundOrderItemId').value;
+    const reason = document.getElementById('refundReason').value.trim();
+    const type = document.getElementById('refundType').value || 'refund';
+    if (!itemId || !reason) return alert('Please provide a reason.');
+    try {
+        const payload = { order_item_id: itemId, reason, request_type: type };
+        if (!currentUser) {
+            payload.guest_token = guestToken;
+        }
+        const res = await fetch('php/api/request_refund.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (json.success) {
+            alert('Refund/Return request submitted.');
+            document.getElementById('refundModal').classList.remove('open');
+            showOrders();
+        } else {
+            alert('Error: ' + (json.message || 'Could not submit request'));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Error submitting request.');
+    }
+}
+
+function openReviewModal(listingType, listingId, relatedOrderId) {
+    document.getElementById('reviewListingType').value = listingType;
+    document.getElementById('reviewListingId').value = listingId;
+    document.getElementById('reviewRelatedOrderId').value = relatedOrderId;
+    document.getElementById('reviewRating').value = 5;
+    document.getElementById('reviewTitle').value = '';
+    document.getElementById('reviewComment').value = '';
+    document.getElementById('reviewModal').classList.add('open');
+}
+
+async function handleReviewForm(e) {
+    e.preventDefault();
+    const type = document.getElementById('reviewListingType').value;
+    const listingId = document.getElementById('reviewListingId').value;
+    const relatedOrderId = document.getElementById('reviewRelatedOrderId').value;
+    const rating = Number(document.getElementById('reviewRating').value);
+    const title = document.getElementById('reviewTitle').value.trim();
+    const comment = document.getElementById('reviewComment').value.trim();
+    if (!listingId || !rating) return alert('Please provide a rating.');
+    try {
+        const payload = { listing_type: type, listing_id: listingId, related_order_id: relatedOrderId, rating, title, comment };
+        if (!currentUser) {
+            payload.guest_token = guestToken;
+        }
+        const res = await fetch('php/api/post_review.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (json.success) {
+            alert('Review submitted.');
+            document.getElementById('reviewModal').classList.remove('open');
+        } else {
+            alert('Error: ' + (json.message || 'Could not submit review'));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Error submitting review.');
+    }
+}
+
+async function viewDeliveryHistory(orderId) {
+    document.getElementById('deliveryModal').classList.add('open');
+    const el = document.getElementById('deliveryHistory');
+    el.innerHTML = 'Loading...';
+    try {
+        const res = await fetch(`php/api/delivery_history.php?order_id=${encodeURIComponent(orderId)}`, { credentials: 'same-origin' });
+        const json = await res.json();
+        if (!json.success) return el.innerHTML = '<p>No history found.</p>';
+        const rows = json.history || json.data || [];
+        if (!Array.isArray(rows) || rows.length === 0) return el.innerHTML = '<p>No history available.</p>';
+        el.innerHTML = rows.map(r => `<div class="history-row">${escapeHtml(r.status)} — ${escapeHtml(r.updated_at || r.created_at || '')}${r.note?(' — '+escapeHtml(r.note)):''}</div>`).join('');
+    } catch (err) {
+        console.error(err);
+        el.innerHTML = '<p>Error loading history.</p>';
     }
 }
 
