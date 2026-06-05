@@ -132,6 +132,28 @@
         </div>
     </div>
 
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content small">
+            <span class="close">&times;</span>
+            <h2>Pay for Order</h2>
+            <form id="paymentForm">
+                <input type="hidden" id="paymentOrderId">
+                <div id="paymentOrderLabel" class="readonly-field"></div>
+                <label for="paymentProvider">Choose Payment System</label>
+                <select id="paymentProvider" required>
+                    <option value="">Select provider</option>
+                    <option value="telebirr">Telebirr</option>
+                    <option value="cbe">CBE</option>
+                    <option value="amole">Amole</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                </select>
+                <div class="payment-summary">After selecting a provider, submit to record the payment and update the order status.</div>
+                <button type="submit">Submit Payment</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Refund/Return Modal -->
     <div id="refundModal" class="modal">
         <div class="modal-content small">
@@ -168,6 +190,7 @@
                 <textarea id="reviewComment" rows="4"></textarea>
                 <button type="submit">Submit Review</button>
             </form>
+            <div id="reviewHistory" class="review-history">Previous reviews will appear here once you select an item.</div>
         </div>
     </div>
 

@@ -35,15 +35,40 @@ $db = $database->getConnection();
 
 try {
     $eligible = false;
+    $hasRegisteredUser = !empty($userId);
+    $ownershipCondition = $hasRegisteredUser
+        ? 'o.user_id = :user_id'
+        : '(o.user_id IS NULL AND o.guest_token = :guest_token)';
 
     if ($listingType === 'product' || $listingType === 'property') {
         if ($relatedOrderId) {
-            $orderStmt = $db->prepare('SELECT o.order_id FROM orders o JOIN order_item oi ON o.order_id = oi.order_id WHERE o.order_id = :order_id AND o.user_id = :user_id AND o.status IN ("Completed","Delivered","Paid") AND ((:listingType = "product" AND oi.product_id = :listingId) OR (:listingType = "property" AND oi.property_id = :listingId)) LIMIT 1');
-            $orderStmt->execute([':order_id' => $relatedOrderId, ':user_id' => $ownerId, ':listingType' => $listingType, ':listingId' => $listingId]);
+            $orderStmt = $db->prepare('SELECT o.order_id FROM orders o JOIN order_item oi ON o.order_id = oi.order_id WHERE o.order_id = :order_id AND ' . $ownershipCondition . ' AND o.status IN ("Completed","Delivered","Paid") AND ((:listingType = "product" AND oi.product_id = :listingId1) OR (:listingType = "property" AND oi.property_id = :listingId2)) LIMIT 1');
+            $params = [
+                ':order_id' => $relatedOrderId,
+                ':listingType' => $listingType,
+                ':listingId1' => $listingId,
+                ':listingId2' => $listingId
+            ];
+            if ($hasRegisteredUser) {
+                $params[':user_id'] = $userId;
+            } else {
+                $params[':guest_token'] = $guestToken;
+            }
+            $orderStmt->execute($params);
             $eligible = $orderStmt->rowCount() > 0;
         } else {
-            $orderStmt = $db->prepare('SELECT o.order_id FROM orders o JOIN order_item oi ON o.order_id = oi.order_id WHERE o.user_id = :user_id AND o.status IN ("Completed","Delivered","Paid") AND ((:listingType = "product" AND oi.product_id = :listingId) OR (:listingType = "property" AND oi.property_id = :listingId)) LIMIT 1');
-            $orderStmt->execute([':user_id' => $ownerId, ':listingType' => $listingType, ':listingId' => $listingId]);
+            $orderStmt = $db->prepare('SELECT o.order_id FROM orders o JOIN order_item oi ON o.order_id = oi.order_id WHERE ' . $ownershipCondition . ' AND o.status IN ("Completed","Delivered","Paid") AND ((:listingType = "product" AND oi.product_id = :listingId1) OR (:listingType = "property" AND oi.property_id = :listingId2)) LIMIT 1');
+            $params = [
+                ':listingType' => $listingType,
+                ':listingId1' => $listingId,
+                ':listingId2' => $listingId
+            ];
+            if ($hasRegisteredUser) {
+                $params[':user_id'] = $userId;
+            } else {
+                $params[':guest_token'] = $guestToken;
+            }
+            $orderStmt->execute($params);
             $found = $orderStmt->fetch(PDO::FETCH_ASSOC);
             $eligible = $found !== false;
             $relatedOrderId = $found['order_id'] ?? null;
@@ -71,7 +96,7 @@ try {
     $insert = $db->prepare('INSERT INTO review (review_id, user_id, recipient_id, listing_type, listing_id, rating, title, comment, review_date, related_order_id, related_contract_id, approved) VALUES (:review_id, :user_id, NULL, :listing_type, :listing_id, :rating, :title, :comment, NOW(), :related_order_id, :related_contract_id, 1)');
     $insert->execute([
         ':review_id' => $reviewId,
-        ':user_id' => $ownerId,
+        ':user_id' => $userId,
         ':listing_type' => $listingType,
         ':listing_id' => $listingId,
         ':rating' => $rating,

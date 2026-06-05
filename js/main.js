@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refundForm')?.addEventListener('submit', handleRefundForm);
     document.getElementById('reviewForm')?.addEventListener('submit', handleReviewForm);
     document.getElementById('orderForm')?.addEventListener('submit', handleOrderForm);
+    document.getElementById('paymentForm')?.addEventListener('submit', handlePaymentSubmit);
 });
 
 function setupNavigation() {
@@ -449,6 +450,7 @@ async function showOrders() {
         const rows = json.orders || json.data || [];
         listEl.innerHTML = renderOrders(rows);
         // attach buttons
+        listEl.querySelectorAll('.btn-pay').forEach(b => b.addEventListener('click', () => openPaymentModal(b.dataset.order)));
         listEl.querySelectorAll('.btn-refund').forEach(b => b.addEventListener('click', () => openRefundModal(b.dataset.item)));
         listEl.querySelectorAll('.btn-review').forEach(b => b.addEventListener('click', () => openReviewModal(b.dataset.type, b.dataset.listing, b.dataset.order)));
         listEl.querySelectorAll('.btn-track').forEach(b => b.addEventListener('click', () => viewDeliveryHistory(b.dataset.order)));
@@ -477,13 +479,19 @@ function renderOrders(rows) {
             const title = it.product_name || it.title || it.address || it.name || it.listing_title || 'Item';
             const qty = it.quantity || it.qty || 1;
             const price = it.unit_price || it.price || it.amount || '';
+            const status = it.status || items[0].status || 'Pending';
+            const canPay = !['paid', 'refunded', 'delivered', 'completed'].includes(String(status).toLowerCase());
+            const payButton = canPay ? `<button class="btn-pay btn-action" data-order="${escapeHtml(String(oid))}">Pay</button>` : '';
             return `<div class="order-item">
                         <div class="order-item-title">${escapeHtml(title)}</div>
                         <div class="order-item-meta">Qty: ${escapeHtml(String(qty))} — ${price ? ('$' + escapeHtml(String(price))) : ''}</div>
                         <div class="order-item-actions">
-                            <button class="btn-track" data-order="${escapeHtml(String(oid))}">Track</button>
-                            <button class="btn-refund" data-item="${escapeHtml(String(itemId))}">Refund/Return</button>
-                            <button class="btn-review" data-type="${escapeHtml(listingType)}" data-listing="${escapeHtml(String(listingId))}" data-order="${escapeHtml(String(oid))}">Review</button>
+                            <div class="order-item-actions-left">${payButton}</div>
+                            <div class="order-item-actions-right">
+                                <button class="btn-track btn-action" data-order="${escapeHtml(String(oid))}">Track</button>
+                                <button class="btn-refund btn-action" data-item="${escapeHtml(String(itemId))}">Refund/Return</button>
+                                <button class="btn-review btn-action" data-type="${escapeHtml(listingType)}" data-listing="${escapeHtml(String(listingId))}" data-order="${escapeHtml(String(oid))}">Review</button>
+                            </div>
                         </div>
                     </div>`;
         }).join('');
@@ -528,6 +536,73 @@ async function handleRefundForm(e) {
     }
 }
 
+async function handlePayOrder(orderId) {
+    if (!orderId) return;
+    try {
+        const payload = { order_id: orderId };
+        if (!currentUser) {
+            payload.guest_token = guestToken;
+        }
+        const res = await fetch('php/api/pay_order.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (json.success) {
+            alert('Payment completed successfully.');
+            showOrders();
+        } else {
+            alert('Payment error: ' + (json.message || 'Unable to complete payment.'));
+        }
+    } catch (err) {
+        console.error('Payment error:', err);
+        alert('Error processing payment.');
+    }
+}
+
+function openPaymentModal(orderId) {
+    document.getElementById('paymentOrderId').value = orderId;
+    document.getElementById('paymentOrderLabel').textContent = `Order ID: ${orderId}`;
+    document.getElementById('paymentProvider').value = '';
+    document.getElementById('paymentModal').classList.add('open');
+}
+
+async function handlePaymentSubmit(e) {
+    e.preventDefault();
+    const orderId = document.getElementById('paymentOrderId').value;
+    const provider = document.getElementById('paymentProvider').value;
+    if (!orderId || !provider) {
+        return alert('Please select a payment provider before submitting.');
+    }
+
+    try {
+        const payload = { order_id: orderId, payment_provider: provider };
+        if (!currentUser) {
+            payload.guest_token = guestToken;
+        }
+
+        const res = await fetch('php/api/pay_order.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (json.success) {
+            alert(`Payment marked as completed via ${provider.toUpperCase()}.`);
+            document.getElementById('paymentModal').classList.remove('open');
+            showOrders();
+        } else {
+            alert('Payment error: ' + (json.message || 'Unable to complete payment.'));
+        }
+    } catch (err) {
+        console.error('Payment submit error:', err);
+        alert('Error processing payment. Please try again.');
+    }
+}
+
 function openReviewModal(listingType, listingId, relatedOrderId) {
     document.getElementById('reviewListingType').value = listingType;
     document.getElementById('reviewListingId').value = listingId;
@@ -535,7 +610,9 @@ function openReviewModal(listingType, listingId, relatedOrderId) {
     document.getElementById('reviewRating').value = 5;
     document.getElementById('reviewTitle').value = '';
     document.getElementById('reviewComment').value = '';
+    document.getElementById('reviewHistory').innerHTML = 'Loading previous reviews...';
     document.getElementById('reviewModal').classList.add('open');
+    loadReviewHistory(listingType, listingId);
 }
 
 async function handleReviewForm(e) {
@@ -576,15 +653,50 @@ async function viewDeliveryHistory(orderId) {
     const el = document.getElementById('deliveryHistory');
     el.innerHTML = 'Loading...';
     try {
-        const res = await fetch(`php/api/delivery_history.php?order_id=${encodeURIComponent(orderId)}`, { credentials: 'same-origin' });
+        let url = `php/api/delivery_history.php?order_id=${encodeURIComponent(orderId)}`;
+        if (!currentUser) {
+            url += `&guest_token=${encodeURIComponent(guestToken)}`;
+        }
+        const res = await fetch(url, { credentials: 'same-origin' });
         const json = await res.json();
-        if (!json.success) return el.innerHTML = '<p>No history found.</p>';
+        if (!json.success) return el.innerHTML = `<p>${escapeHtml(json.message || 'No history found.')}</p>`;
         const rows = json.history || json.data || [];
         if (!Array.isArray(rows) || rows.length === 0) return el.innerHTML = '<p>No history available.</p>';
-        el.innerHTML = rows.map(r => `<div class="history-row">${escapeHtml(r.status)} — ${escapeHtml(r.updated_at || r.created_at || '')}${r.note?(' — '+escapeHtml(r.note)):''}</div>`).join('');
+        el.innerHTML = rows.map(r => `<div class="history-row">${escapeHtml(r.status)} — ${escapeHtml(r.location || r.updated_at || r.created_at || '')}${r.notes ? (' — ' + escapeHtml(r.notes)) : ''}</div>`).join('');
     } catch (err) {
         console.error(err);
         el.innerHTML = '<p>Error loading history.</p>';
+    }
+}
+
+async function loadReviewHistory(listingType, listingId) {
+    const container = document.getElementById('reviewHistory');
+    if (!container) return;
+    container.innerHTML = 'Loading previous reviews...';
+    try {
+        const res = await fetch(`php/api/get_reviews.php?listing_type=${encodeURIComponent(listingType)}&listing_id=${encodeURIComponent(listingId)}`);
+        const json = await res.json();
+        if (!json.success) {
+            container.innerHTML = '<p>No reviews found.</p>';
+            return;
+        }
+        const reviews = json.reviews || [];
+        if (!reviews.length) {
+            container.innerHTML = '<p>No reviews yet. Be the first to leave feedback.</p>';
+            return;
+        }
+        container.innerHTML = reviews.map(r => {
+            const reviewer = (r.f_name || r.l_name) ? `${escapeHtml(r.f_name || '')} ${escapeHtml(r.l_name || '')}`.trim() : 'Guest';
+            return `<div class="review-card">
+                        <div class="review-meta"><strong>${reviewer}</strong><span>${escapeHtml(String(r.rating))}/5</span></div>
+                        ${r.title ? `<div class="review-title">${escapeHtml(r.title)}</div>` : ''}
+                        <div class="review-comment">${escapeHtml(r.comment || '')}</div>
+                        <div class="review-date">${escapeHtml(r.review_date || '')}</div>
+                    </div>`;
+        }).join('');
+    } catch (err) {
+        console.error('Review history load failed:', err);
+        container.innerHTML = '<p>Error loading reviews.</p>';
     }
 }
 
