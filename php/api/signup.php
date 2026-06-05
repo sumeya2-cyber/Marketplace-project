@@ -5,6 +5,7 @@ header('Access-Control-Allow-Methods: POST');
 header('Access-Control-Allow-Headers: Content-Type');
 
 require_once '../config/Database.php';
+require_once '../includes/mailer.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input || empty($input['name']) || empty($input['email']) || empty($input['password'])) {
@@ -61,6 +62,7 @@ try {
     $stmt->bindParam(':status', $activeStatus);
 
     if ($stmt->execute()) {
+        sendAdminNotification($db, null, 'New User Registration', "A new user has registered: $name ($email).", $userId, 'user_registration');
         echo json_encode(['success' => true, 'message' => 'Signup successful. Please login to continue.']);
     } else {
         echo json_encode(['success' => false, 'message' => 'Unable to register user.']);

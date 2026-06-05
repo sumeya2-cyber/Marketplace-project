@@ -71,8 +71,9 @@ try {
 
     if ($customerEmail) {
         $subject = 'Refund/Return Request Received';
-        $body = buildNotificationEmail('Request Submitted', "Your $requestType request has been received. Request ID: $returnRequestId.");
-        sendMarketplaceEmail($customerEmail, $customerName, $subject, $body);
+        $message = "Your $requestType request has been received. Request ID: $returnRequestId.";
+        sendBuyerNotification($db, $userId, $customerEmail, $customerName, $subject, $message, $returnRequestId, 'refund_request');
+        sendAdminNotification($db, null, 'Refund/Return Request Submitted', "A $requestType request was submitted for order item $orderItemId. Request ID: $returnRequestId.", $returnRequestId, 'refund_request');
     }
 
     jsonResponse(true, 'Refund/return request submitted successfully.', ['return_request_id' => $returnRequestId]);

@@ -92,6 +92,38 @@ try {
         jsonResponse(false, 'You are not authorized to review this listing. Reviews are allowed only after completed purchases or contracts.');
     }
 
+    $duplicateSql = 'SELECT review_id FROM review WHERE LOWER(listing_type) = :listing_type AND listing_id = :listing_id';
+    if ($relatedOrderId) {
+        $duplicateSql .= ' AND related_order_id = :related_order_id';
+    }
+    if ($relatedContractId) {
+        $duplicateSql .= ' AND related_contract_id = :related_contract_id';
+    }
+    if ($userId) {
+        $duplicateSql .= ' AND user_id = :user_id';
+    } else {
+        $duplicateSql .= ' AND user_id IS NULL';
+    }
+
+    $dupStmt = $db->prepare($duplicateSql);
+    $dupParams = [
+        ':listing_type' => $listingType,
+        ':listing_id' => $listingId
+    ];
+    if ($relatedOrderId) {
+        $dupParams[':related_order_id'] = $relatedOrderId;
+    }
+    if ($relatedContractId) {
+        $dupParams[':related_contract_id'] = $relatedContractId;
+    }
+    if ($userId) {
+        $dupParams[':user_id'] = $userId;
+    }
+    $dupStmt->execute($dupParams);
+    if ($dupStmt->rowCount() > 0) {
+        jsonResponse(false, 'A review has already been submitted for this completed transaction.');
+    }
+
     $reviewId = 'REV-' . bin2hex(random_bytes(5));
     $insert = $db->prepare('INSERT INTO review (review_id, user_id, recipient_id, listing_type, listing_id, rating, title, comment, review_date, related_order_id, related_contract_id, approved) VALUES (:review_id, :user_id, NULL, :listing_type, :listing_id, :rating, :title, :comment, NOW(), :related_order_id, :related_contract_id, 1)');
     $insert->execute([

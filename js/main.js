@@ -1,6 +1,8 @@
 let currentListingType = 'properties';
 let currentCategoryId = null;
 let guestToken = getGuestToken();
+let paymentMethods = [];
+let selectedPaymentMethodId = null;
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', () => {
@@ -151,6 +153,20 @@ async function loadCategoryItems(type, categoryId = null) {
                 showOrderModal(itemType, itemId, itemName, itemPrice);
             });
         });
+        container.querySelectorAll('button[data-action="details"]').forEach(button => {
+            button.addEventListener('click', () => {
+                let itemType = button.dataset.type;
+                const itemId = button.dataset.id;
+                const itemName = button.dataset.title;
+                const itemPrice = button.dataset.price;
+                const itemDesc = button.dataset.description || '';
+                const itemImage = button.dataset.image || '';
+                if (itemType === 'properties') itemType = 'property';
+                if (itemType === 'products') itemType = 'product';
+                if (itemType === 'services') itemType = 'service';
+                openListingDetailsModal(itemType, itemId, itemName, itemPrice, itemDesc, itemImage);
+            });
+        });
     } catch (error) {
         console.error('Error loading items:', error);
         container.innerHTML = '<p>Error loading listings. Please try again later.</p>';
@@ -166,6 +182,7 @@ function createListingCard(listing, type) {
     const imagePath = listing.image_path || listing.image || '';
     const itemId = listing.product_id || listing.property_id || listing.id || '';
     const orderButton = `<button class="btn-order" data-type="${escapeHtml(type)}" data-id="${escapeHtml(String(itemId))}" data-title="${escapeHtml(title)}" data-price="${escapeHtml(String(price))}">Order Now</button>`;
+    const detailsButton = `<button class="btn-action" data-action="details" data-type="${escapeHtml(type)}" data-id="${escapeHtml(String(itemId))}" data-title="${escapeHtml(title)}" data-price="${escapeHtml(String(price))}" data-description="${escapeHtml(description)}" data-image="${escapeHtml(imagePath)}">View Details</button>`;
 
     return `
         <div class="listing-card">
@@ -177,7 +194,7 @@ function createListingCard(listing, type) {
                 <div class="listing-detail"><strong>Location:</strong> ${escapeHtml(location)}</div>
                 <div class="listing-detail"><strong>Brand:</strong> ${escapeHtml(brand)}</div>
                 <div class="listing-description">${escapeHtml(description).substring(0, 160)}</div>
-                <div class="listing-actions">${orderButton}</div>
+                <div class="listing-actions">${detailsButton}${orderButton}</div>
             </div>
         </div>
     `;
@@ -210,7 +227,142 @@ function showOrderModal(type, itemId, itemName, itemPrice) {
     document.getElementById('guestName').value = '';
     document.getElementById('guestEmail').value = '';
     document.getElementById('guestOrderFields').style.display = currentUser ? 'none' : 'block';
+    selectedPaymentMethodId = null;
+    document.getElementById('paymentMethodId').value = '';
+    document.getElementById('selectedPaymentMethodLabel').style.display = 'none';
+    loadPaymentMethods();
     document.getElementById('orderModal').classList.add('open');
+}
+
+async function loadPaymentMethods() {
+    if (paymentMethods.length > 0) {
+        renderPaymentMethodCards(paymentMethods);
+        return;
+    }
+
+    const container = document.getElementById('paymentMethodCards');
+    if (container) {
+        container.innerHTML = 'Loading payment methods...';
+    }
+
+    try {
+        const res = await fetch('php/api/get_payment_methods.php');
+        const json = await res.json();
+        if (!json.success || !Array.isArray(json.methods) || json.methods.length === 0) {
+            throw new Error(json.message || 'No payment methods available');
+        }
+        paymentMethods = json.methods;
+        renderPaymentMethodCards(paymentMethods);
+    } catch (err) {
+        console.error('Payment methods load failed:', err);
+        if (container) {
+            container.innerHTML = '<p>Unable to load payment methods. Please try again later or contact support.</p>';
+        }
+    }
+}
+
+function renderPaymentMethodCards(methods) {
+    const container = document.getElementById('paymentMethodCards');
+    if (!container) return;
+    container.innerHTML = methods.map(method => {
+        const label = method.provider_name || method.method_name || method.method_id;
+        const icon = getPaymentMethodIcon(method.method_id, label);
+        return `<div class="payment-method-card" data-method-id="${escapeHtml(method.method_id)}" data-method-name="${escapeHtml(label)}">
+                    <div class="provider-logo">${icon}</div>
+                    <div class="provider-name">${escapeHtml(label)}</div>
+                    <div class="provider-description">${escapeHtml(method.method_name || '')}</div>
+                </div>`;
+    }).join('');
+
+    container.querySelectorAll('.payment-method-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const methodId = card.dataset.methodId;
+            const methodName = card.dataset.methodName;
+            selectPaymentMethod(methodId, methodName, card);
+        });
+    });
+}
+
+function selectPaymentMethod(methodId, methodName, cardElement) {
+    selectedPaymentMethodId = methodId;
+    document.getElementById('paymentMethodId').value = methodId;
+    document.getElementById('selectedPaymentMethodLabel').textContent = `Selected provider: ${methodName}`;
+    document.getElementById('selectedPaymentMethodLabel').style.display = 'block';
+    document.querySelectorAll('.payment-method-card').forEach(card => card.classList.remove('selected'));
+    if (cardElement) cardElement.classList.add('selected');
+}
+
+function getPaymentMethodIcon(methodId, label) {
+    const lower = methodId.toLowerCase();
+    switch (lower) {
+        case 'paypal': return '<i class="fab fa-paypal"></i>';
+        case 'stripe': return '<i class="fab fa-cc-stripe"></i>';
+        case 'telebirr': return '<i class="fas fa-mobile-alt"></i>';
+        case 'cbe': return '<i class="fas fa-university"></i>';
+        case 'chapa': return '<i class="fas fa-wallet"></i>';
+        case 'bank_transfer': return '<i class="fas fa-university"></i>';
+        default: return '<i class="fas fa-credit-card"></i>';
+    }
+}
+
+function openListingDetailsModal(type, listingId, title, price, description, image) {
+    const modal = document.getElementById('detailsModal');
+    document.getElementById('detailsTitle').textContent = title;
+    document.getElementById('detailsSummary').innerHTML = `<strong>Type:</strong> ${escapeHtml(type)}<br><strong>Price:</strong> ${price !== 'N/A' ? '$' + escapeHtml(String(price)) : 'N/A'}`;
+    document.getElementById('detailsDescription').textContent = description || 'No additional description available.';
+    const imgEl = document.getElementById('detailsImage');
+    if (image) {
+        imgEl.src = image;
+        imgEl.style.display = 'block';
+    } else {
+        imgEl.style.display = 'none';
+    }
+    document.getElementById('detailsReviewSummary').innerHTML = 'Loading reviews...';
+    document.getElementById('detailsReviewHistory').innerHTML = 'Loading previous reviews...';
+    document.getElementById('detailsReviewButton').onclick = () => openReviewModal(type, listingId, '');
+    modal.classList.add('open');
+    loadReviewHistory(type, listingId, 'detailsReviewHistory', 'detailsReviewSummary');
+}
+
+function loadReviewHistory(listingType, listingId, targetId = 'reviewHistory', summaryId = null) {
+    const container = document.getElementById(targetId);
+    if (!container) return;
+    container.innerHTML = 'Loading previous reviews...';
+    fetch(`php/api/get_reviews.php?listing_type=${encodeURIComponent(listingType)}&listing_id=${encodeURIComponent(listingId)}`)
+        .then(res => res.json())
+        .then(json => {
+            if (!json.success) {
+                container.innerHTML = '<p>No reviews found.</p>';
+                if (summaryId) {
+                    document.getElementById(summaryId).innerHTML = '';
+                }
+                return;
+            }
+            const reviews = json.reviews || [];
+            if (summaryId) {
+                document.getElementById(summaryId).innerHTML = `<strong>${json.review_count}</strong> reviews • Average rating: <strong>${json.average_rating || 0}</strong>/5`;
+            }
+            if (!reviews.length) {
+                container.innerHTML = '<p>No reviews yet. Be the first to leave feedback.</p>';
+                return;
+            }
+            container.innerHTML = reviews.map(r => {
+                const reviewer = (r.f_name || r.l_name) ? `${escapeHtml(r.f_name || '')} ${escapeHtml(r.l_name || '')}`.trim() : 'Guest';
+                return `<div class="review-card">
+                            <div class="review-meta"><strong>${reviewer}</strong><span>${escapeHtml(String(r.rating))}/5</span></div>
+                            ${r.title ? `<div class="review-title">${escapeHtml(r.title)}</div>` : ''}
+                            <div class="review-comment">${escapeHtml(r.comment || '')}</div>
+                            <div class="review-date">${escapeHtml(r.review_date || '')}</div>
+                        </div>`;
+            }).join('');
+        })
+        .catch(err => {
+            console.error('Review history load failed:', err);
+            container.innerHTML = '<p>Error loading reviews.</p>';
+            if (summaryId) {
+                document.getElementById(summaryId).innerHTML = '';
+            }
+        });
 }
 
 async function handleOrderForm(e) {
@@ -244,9 +396,13 @@ async function handleOrderForm(e) {
         });
         const result = await response.json();
         if (result.success) {
-            alert('Order created successfully. Order ID: ' + (result.order_id || 'N/A'));
             document.getElementById('orderModal').classList.remove('open');
-            showOrders();
+            alert('Order created successfully. Order ID: ' + (result.order_id || 'N/A'));
+            if (result.order_id) {
+                openPaymentModal(result.order_id);
+            } else {
+                showOrders();
+            }
         } else {
             alert('Order failed: ' + result.message);
         }
@@ -565,20 +721,23 @@ async function handlePayOrder(orderId) {
 function openPaymentModal(orderId) {
     document.getElementById('paymentOrderId').value = orderId;
     document.getElementById('paymentOrderLabel').textContent = `Order ID: ${orderId}`;
-    document.getElementById('paymentProvider').value = '';
+    selectedPaymentMethodId = null;
+    document.getElementById('paymentMethodId').value = '';
+    document.getElementById('selectedPaymentMethodLabel').style.display = 'none';
+    loadPaymentMethods();
     document.getElementById('paymentModal').classList.add('open');
 }
 
 async function handlePaymentSubmit(e) {
     e.preventDefault();
     const orderId = document.getElementById('paymentOrderId').value;
-    const provider = document.getElementById('paymentProvider').value;
-    if (!orderId || !provider) {
+    const paymentMethod = document.getElementById('paymentMethodId').value;
+    if (!orderId || !paymentMethod) {
         return alert('Please select a payment provider before submitting.');
     }
 
     try {
-        const payload = { order_id: orderId, payment_provider: provider };
+        const payload = { order_id: orderId, payment_method_id: paymentMethod };
         if (!currentUser) {
             payload.guest_token = guestToken;
         }
@@ -591,7 +750,7 @@ async function handlePaymentSubmit(e) {
         });
         const json = await res.json();
         if (json.success) {
-            alert(`Payment marked as completed via ${provider.toUpperCase()}.`);
+            alert('Payment completed successfully.');
             document.getElementById('paymentModal').classList.remove('open');
             showOrders();
         } else {
@@ -669,34 +828,5 @@ async function viewDeliveryHistory(orderId) {
     }
 }
 
-async function loadReviewHistory(listingType, listingId) {
-    const container = document.getElementById('reviewHistory');
-    if (!container) return;
-    container.innerHTML = 'Loading previous reviews...';
-    try {
-        const res = await fetch(`php/api/get_reviews.php?listing_type=${encodeURIComponent(listingType)}&listing_id=${encodeURIComponent(listingId)}`);
-        const json = await res.json();
-        if (!json.success) {
-            container.innerHTML = '<p>No reviews found.</p>';
-            return;
-        }
-        const reviews = json.reviews || [];
-        if (!reviews.length) {
-            container.innerHTML = '<p>No reviews yet. Be the first to leave feedback.</p>';
-            return;
-        }
-        container.innerHTML = reviews.map(r => {
-            const reviewer = (r.f_name || r.l_name) ? `${escapeHtml(r.f_name || '')} ${escapeHtml(r.l_name || '')}`.trim() : 'Guest';
-            return `<div class="review-card">
-                        <div class="review-meta"><strong>${reviewer}</strong><span>${escapeHtml(String(r.rating))}/5</span></div>
-                        ${r.title ? `<div class="review-title">${escapeHtml(r.title)}</div>` : ''}
-                        <div class="review-comment">${escapeHtml(r.comment || '')}</div>
-                        <div class="review-date">${escapeHtml(r.review_date || '')}</div>
-                    </div>`;
-        }).join('');
-    } catch (err) {
-        console.error('Review history load failed:', err);
-        container.innerHTML = '<p>Error loading reviews.</p>';
-    }
-}
+
 

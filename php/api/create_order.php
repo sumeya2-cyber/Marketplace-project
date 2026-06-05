@@ -144,11 +144,16 @@ try {
 
     if ($customerEmail) {
         $subject = 'Order Received: ' . $orderId;
-        $body = buildNotificationEmail('Order Received', "Thank you for your order.\nOrder ID: $orderId\nItem: " . $listing['product_name'] . "\nAmount: $totalAmount");
-        sendMarketplaceEmail($customerEmail, $customerName, $subject, $body);
+        $message = "Thank you for your order.\nOrder ID: $orderId\nItem: " . $listing['product_name'] . "\nAmount: $totalAmount";
+        sendBuyerNotification($db, $order['user_id'], $customerEmail, $customerName, $subject, $message, $orderId, 'order');
     }
 
-    jsonResponse(true, 'Order created successfully.', ['order_id' => $orderId, 'payment_id' => $paymentId]);
+    $redirectUrl = null;
+    if ($paymentId && $paymentMethodId) {
+        $redirectUrl = 'payment_gateway_redirect.php?order_id=' . urlencode($orderId) . '&payment_id=' . urlencode($paymentId) . '&method_id=' . urlencode($paymentMethodId);
+    }
+
+    jsonResponse(true, 'Order created successfully.', ['order_id' => $orderId, 'payment_id' => $paymentId, 'redirect_url' => $redirectUrl]);
 } catch (PDOException $e) {
     if ($db->inTransaction()) {
         $db->rollBack();

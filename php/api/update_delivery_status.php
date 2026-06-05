@@ -74,8 +74,8 @@ try {
 
     if ($customerEmail) {
         $subject = 'Delivery Update for Order ' . $orderId;
-        $body = buildNotificationEmail('Delivery Update', "Your order $orderId has a new delivery status: $status. Tracking number: $trackingNumber.");
-        sendMarketplaceEmail($customerEmail, $customerName, $subject, $body);
+        $message = "Your order $orderId has a new delivery status: $status. Tracking number: $trackingNumber.";
+        sendBuyerNotification($db, $order['user_id'], $customerEmail, $customerName, $subject, $message, $orderId, 'delivery_update');
     }
 
     jsonResponse(true, 'Delivery status updated successfully.', ['tracking_number' => $trackingNumber]);

@@ -139,18 +139,30 @@
             <h2>Pay for Order</h2>
             <form id="paymentForm">
                 <input type="hidden" id="paymentOrderId">
+                <input type="hidden" id="paymentMethodId">
                 <div id="paymentOrderLabel" class="readonly-field"></div>
-                <label for="paymentProvider">Choose Payment System</label>
-                <select id="paymentProvider" required>
-                    <option value="">Select provider</option>
-                    <option value="telebirr">Telebirr</option>
-                    <option value="cbe">CBE</option>
-                    <option value="amole">Amole</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                </select>
-                <div class="payment-summary">After selecting a provider, submit to record the payment and update the order status.</div>
-                <button type="submit">Submit Payment</button>
+                <label>Choose Payment System</label>
+                <div id="paymentMethodCards" class="payment-method-grid">Loading payment methods...</div>
+                <div id="selectedPaymentMethodLabel" class="readonly-field" style="display:none;"></div>
+                <div class="payment-summary">Select a provider and continue to the payment gateway.</div>
+                <button type="submit">Continue to Payment</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Listing Details Modal -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content large">
+            <span class="close">&times;</span>
+            <h2 id="detailsTitle">Listing Details</h2>
+            <div id="detailsBody">
+                <img id="detailsImage" class="listing-image" src="" alt="Listing image" style="max-height:260px; object-fit:cover; margin-bottom:1rem; display:none; width:100%;" />
+                <div id="detailsSummary" style="margin-bottom:1rem;"></div>
+                <div id="detailsDescription" style="margin-bottom:1rem; color:#555;"></div>
+                <div id="detailsReviewSummary" style="margin:1rem 0; padding:1rem; background:#f7f9fb; border:1px solid #e1e5ea; border-radius:10px;"></div>
+                <div id="detailsReviewHistory" class="review-history"></div>
+                <button id="detailsReviewButton" class="btn-review btn-action" style="margin-top:1rem;">Leave a Review</button>
+            </div>
         </div>
     </div>
 

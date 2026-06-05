@@ -17,8 +17,10 @@ if (!$input || empty($input['order_id'])) {
 $orderId = trim($input['order_id']);
 $guestToken = isset($input['guest_token']) ? trim($input['guest_token']) : null;
 $paymentProvider = isset($input['payment_provider']) ? trim($input['payment_provider']) : null;
+$paymentMethodId = isset($input['payment_method_id']) ? trim($input['payment_method_id']) : null;
+$providerLabel = $paymentMethodId ?: $paymentProvider;
 
-if (!$paymentProvider) {
+if (!$providerLabel) {
     jsonResponse(false, 'Payment provider is required.');
 }
 
@@ -77,11 +79,12 @@ try {
 
     if ($userEmail) {
         $subject = 'Payment Completed for Order ' . $orderId;
-        $body = buildNotificationEmail('Payment Completed', "Your payment for order $orderId has been successfully completed using {$paymentProvider}.");
-        sendMarketplaceEmail($userEmail, $userName, $subject, $body);
+        $message = "Your payment for order $orderId has been successfully completed using {$providerLabel}.";
+        sendBuyerNotification($db, $order['user_id'], $userEmail, $userName, $subject, $message, $orderId, 'order');
+        sendAdminNotification($db, null, $subject, "Order $orderId payment completed using {$providerLabel}.", $orderId, 'order');
     }
 
-    jsonResponse(true, 'Payment completed successfully.', ['order_id' => $orderId, 'status' => 'Paid', 'provider' => $paymentProvider]);
+    jsonResponse(true, 'Payment completed successfully.', ['order_id' => $orderId, 'status' => 'Paid', 'provider' => $providerLabel]);
 } catch (PDOException $e) {
     jsonResponse(false, 'Database error: ' . $e->getMessage());
 }

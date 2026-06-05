@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . '/../config/Mailer.php';
+require_once __DIR__ . '/../config/Payment.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
@@ -49,5 +50,55 @@ function sendMarketplaceEmail($toEmail, $toName, $subject, $htmlBody) {
         error_log('Mailer Error: ' . $e->getMessage());
         return false;
     }
+}
+
+function logNotification($db, $recipientId, $recipientRole, $subject, $message, $referenceId = null, $referenceType = null, $emailTo = null, $status = 'sent') {
+    if (!$db) {
+        return false;
+    }
+
+    try {
+        $notificationId = 'NOTIF-' . bin2hex(random_bytes(5));
+        $insert = $db->prepare('INSERT INTO notification (notification_id, user_id, recipient_role, subject, message, reference_type, reference_id, email_to, status, sent_at, created_at) VALUES (:notification_id, :user_id, :recipient_role, :subject, :message, :reference_type, :reference_id, :email_to, :status, NOW(), NOW())');
+        $insert->execute([
+            ':notification_id' => $notificationId,
+            ':user_id' => $recipientId,
+            ':recipient_role' => $recipientRole,
+            ':subject' => $subject,
+            ':message' => $message,
+            ':reference_type' => $referenceType,
+            ':reference_id' => $referenceId,
+            ':email_to' => $emailTo,
+            ':status' => $status
+        ]);
+        return true;
+    } catch (PDOException $e) {
+        error_log('Notification log error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+function sendGenericNotification($db, $recipientId, $recipientRole, $toEmail, $toName, $subject, $message, $referenceId = null, $referenceType = null) {
+    $sent = sendMarketplaceEmail($toEmail, $toName, $subject, buildNotificationEmail($subject, $message));
+    logNotification($db, $recipientId, $recipientRole, $subject, $message, $referenceId, $referenceType, $toEmail, $sent ? 'sent' : 'failed');
+    return $sent;
+}
+
+function sendBuyerNotification($db, $recipientId, $toEmail, $toName, $subject, $message, $referenceId = null, $referenceType = null) {
+    return sendGenericNotification($db, $recipientId, 'buyer', $toEmail, $toName, $subject, $message, $referenceId, $referenceType);
+}
+
+function sendSellerNotification($db, $recipientId, $toEmail, $toName, $subject, $message, $referenceId = null, $referenceType = null) {
+    return sendGenericNotification($db, $recipientId, 'seller', $toEmail, $toName, $subject, $message, $referenceId, $referenceType);
+}
+
+function sendProviderNotification($db, $recipientId, $toEmail, $toName, $subject, $message, $referenceId = null, $referenceType = null) {
+    return sendGenericNotification($db, $recipientId, 'provider', $toEmail, $toName, $subject, $message, $referenceId, $referenceType);
+}
+
+function sendAdminNotification($db, $recipientId, $subject, $message, $referenceId = null, $referenceType = null) {
+    $config = PaymentConfig::getConfig();
+    $adminEmail = $config['default_admin_email'] ?? $config['reply_to'] ?? 'admin@marketplace.local';
+    return sendGenericNotification($db, $recipientId, 'admin', $adminEmail, 'Marketplace Admin', $subject, $message, $referenceId, $referenceType);
 }
 ?>
